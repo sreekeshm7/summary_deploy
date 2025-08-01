@@ -10,28 +10,23 @@ from dotenv import load_dotenv
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Safety check for API key
-if not openai.api_key:
-    raise RuntimeError("OPENAI_API_KEY is not set. Please check your environment variables.")
-
 # Initialize FastAPI app
 app = FastAPI()
 
 # Enable CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to specific domain in production
+    allow_origins=["*"],  # Replace with frontend domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Pydantic request model
+# Pydantic request model matching your input
 class ResumeRequest(BaseModel):
     resume: dict
-    summary: str = ""  # Optional
+    summary: str = ""  # Optional, can be empty
 
-# Prompt builder
 def build_prompt(resume_json: dict, summary: str, job_title: str = "") -> str:
     formatted_resume = json.dumps(resume_json, indent=2)
     summary_section = f'Existing Summary: "{summary}"' if summary else "No summary provided."
@@ -99,10 +94,11 @@ Respond in this JSON format:
 }}
 """
 
-# API route
+# Main route
 @app.post("/evaluate-resume")
 async def evaluate_resume(data: ResumeRequest):
     try:
+        # Use provided summary if present, else fallback to resume["Summary"]
         summary = data.summary or data.resume.get("Summary", "")
         prompt = build_prompt(data.resume, summary)
 
@@ -116,7 +112,7 @@ async def evaluate_resume(data: ResumeRequest):
             temperature=0.7
         )
         content = response.choices[0].message.content
-
+        
         try:
             json_output = json.loads(content)
         except json.JSONDecodeError:
@@ -129,13 +125,3 @@ async def evaluate_resume(data: ResumeRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Health check route (for Render)
-@app.get("/")
-async def root():
-    return {"message": "Resume Evaluator API is live"}
-
-# Local dev runner
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=True)
