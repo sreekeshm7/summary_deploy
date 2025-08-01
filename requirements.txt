@@ -3,5 +3,5 @@ uvicorn[standard]
 python-dotenv
 openai>=1.0.0
 pydantic
-
+gunicorn
 
